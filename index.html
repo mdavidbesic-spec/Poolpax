@@ -394,6 +394,32 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="companySignModal">
+  <div class="modal-panel" style="max-width:420px;">
+    <div class="modal-head">
+      <h2 style="font-size:17px;">Sign as your company</h2>
+      <button class="modal-close" id="closeCompanySignModalBtn">&times;</button>
+    </div>
+    <div class="modal-sub">Before this goes to your client, sign as the company issuing the estimate. Both signatures make it a legitimate, fully-executed contract.</div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Your name (signing on behalf of the company)</label>
+        <input type="text" id="companySignerName" placeholder="Your full name">
+      </div>
+      <div class="field">
+        <label>Signature</label>
+        <canvas id="companySigPad" style="width:100%; height:140px; border:1px solid var(--line); border-radius:4px; background:var(--surface-soft); touch-action:none; display:block;"></canvas>
+        <div style="display:flex; justify-content:space-between; margin-top:6px;">
+          <span style="font-size:12px; color:var(--faint);">Draw with your finger or mouse</span>
+          <button type="button" class="clear-btn" id="clearCompanySigBtn" style="background:none; border:none; color:var(--aqua-dark); font-weight:600; font-size:13px; cursor:pointer;">Clear</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="submitCompanySignBtn" style="width:100%;" disabled>Sign &amp; Continue</button>
+      <div class="ai-note" id="companySignStatus"></div>
+    </div>
+  </div>
+</div>
+
 <div class="app">
   <div class="layout">
 
@@ -669,6 +695,8 @@
   let currentUser = null;
   let currentCompanyId = null;
   let currentEstimateId = null; // set when a saved estimate has been loaded/saved, for updates
+  let companySignedAt = null;
+  let companySignedByName = null;
 
   // ---------- DFW starter price seed (used only to seed a brand-new company's price book) ----------
   const DFW_STARTER = [
@@ -1648,21 +1676,25 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
 
   function updateSignBadge(r){
     const badge = $('signBadge');
-    if (r && r.signed_at){
+    if (r && r.signed_at && r.company_signed_at){
       badge.style.display = 'block';
-      badge.textContent = `Signed by ${r.signed_by_name||'client'} on ${new Date(r.signed_at).toLocaleString()}`;
+      badge.textContent = `Fully signed — company (${r.company_signed_by_name||''}) on ${new Date(r.company_signed_at).toLocaleDateString()}, client (${r.signed_by_name||'client'}) on ${new Date(r.signed_at).toLocaleString()}`;
+    } else if (r && r.company_signed_at){
+      badge.style.display = 'block';
+      badge.textContent = `Signed by company on ${new Date(r.company_signed_at).toLocaleString()} — awaiting client signature`;
     } else {
       badge.style.display = 'none';
       badge.textContent = '';
     }
   }
 
-  $('shareSignBtn').addEventListener('click', async ()=>{
+  async function proceedWithShareLink(){
     $('shareStatus').textContent = 'Preparing signable link...';
     try{
-      const id = await saveEstimateToAccount();
+      const id = currentEstimateId;
       const { error } = await sb.from('estimates').update({ is_shared: true }).eq('id', id);
       if (error) throw error;
+      updateSignBadge({ company_signed_at: companySignedAt, company_signed_by_name: companySignedByName });
       const link = `${window.location.origin}/view.html?id=${id}`;
       if (navigator.share){
         try{
@@ -1680,10 +1712,27 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     }catch(e){
       $('shareStatus').textContent = `Couldn't create a signable link: ${e.message || e}`;
     }
+  }
+
+  $('shareSignBtn').addEventListener('click', async ()=>{
+    $('shareStatus').textContent = 'Saving...';
+    try{
+      await saveEstimateToAccount();
+      if (!companySignedAt){
+        $('shareStatus').textContent = 'Sign as the company first, then the link will be ready to send.';
+        openCompanySignModal();
+        return;
+      }
+      await proceedWithShareLink();
+    }catch(e){
+      $('shareStatus').textContent = `Couldn't prepare this estimate: ${e.message || e}`;
+    }
   });
 
   function applyEstimateRow(r){
     currentEstimateId = r.id;
+    companySignedAt = r.company_signed_at || null;
+    companySignedByName = r.company_signed_by_name || null;
     $('quoteNumber').value = r.quote_number||''; $('quoteDate').value = r.quote_date||'';
     $('clientName').value = r.client_name||''; $('clientPhone').value = r.client_phone||'';
     $('clientEmail').value = r.client_email||''; $('jobAddress').value = r.job_address||'';
@@ -1707,7 +1756,7 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     const wrap = $('myEstimatesList');
     wrap.innerHTML = '<div style="color:#5b6b64;">Loading...</div>';
     const { data, error } = await sb.from('estimates')
-      .select('id, quote_number, job_title, client_name, updated_at, signed_at')
+      .select('id, quote_number, job_title, client_name, updated_at, signed_at, company_signed_at')
       .eq('company_id', currentCompanyId)
       .order('updated_at', { ascending:false })
       .limit(25);
@@ -1717,7 +1766,8 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     data.forEach(r=>{
       const row = document.createElement('div');
       row.className = 'saved-item';
-      const label = (r.quote_number?`${r.quote_number} — `:'') + (r.job_title || 'Untitled estimate') + (r.client_name? ' — '+r.client_name : '') + (r.signed_at ? ' ✓ Signed' : '');
+      const status = r.signed_at ? ' ✓ Fully signed' : (r.company_signed_at ? ' · Awaiting client' : '');
+      const label = (r.quote_number?`${r.quote_number} — `:'') + (r.job_title || 'Untitled estimate') + (r.client_name? ' — '+r.client_name : '') + status;
       const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '';
       row.innerHTML = `<div><div>${escHtml(label)}</div><div class="meta">${when}</div></div>`;
       const btnWrap = document.createElement('div');
@@ -1820,6 +1870,92 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
   $('donePriceBookBtn').addEventListener('click', closePriceBookModal);
   $('priceBookModal').addEventListener('click', e=>{
     if (e.target.id === 'priceBookModal') closePriceBookModal();
+  });
+
+  // ---------- reusable signature pad ----------
+  function setupSignaturePad(canvas, onDrawChange){
+    const ctx = canvas.getContext('2d');
+    function resize(){
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+      ctx.strokeStyle = '#0A2321';
+    }
+    resize();
+    let drawing = false, hasDrawn = false, lastX = 0, lastY = 0;
+    function pos(e){ const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    function start(e){ drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; }
+    function move(e){
+      if (!drawing) return;
+      const p = pos(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+      lastX = p.x; lastY = p.y; hasDrawn = true;
+      if (onDrawChange) onDrawChange(true);
+    }
+    function end(){ drawing = false; }
+    canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); start(e); });
+    canvas.addEventListener('pointermove', move);
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    return {
+      clear(){ ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn = false; if (onDrawChange) onDrawChange(false); },
+      hasDrawing(){ return hasDrawn; },
+      toDataURL(){ return canvas.toDataURL('image/png'); },
+      resize
+    };
+  }
+
+  // ---------- company signing modal ----------
+  let companySigPadCtrl = null;
+  function updateCompanySignSubmitState(){
+    const name = $('companySignerName').value.trim();
+    const drawn = companySigPadCtrl && companySigPadCtrl.hasDrawing();
+    $('submitCompanySignBtn').disabled = !(name && drawn);
+  }
+  function openCompanySignModal(){
+    $('companySignModal').classList.add('open');
+    if (!companySigPadCtrl){
+      companySigPadCtrl = setupSignaturePad($('companySigPad'), updateCompanySignSubmitState);
+    } else {
+      companySigPadCtrl.resize();
+    }
+    updateCompanySignSubmitState();
+  }
+  function closeCompanySignModal(){ $('companySignModal').classList.remove('open'); }
+  $('closeCompanySignModalBtn').addEventListener('click', closeCompanySignModal);
+  $('companySignModal').addEventListener('click', e=>{
+    if (e.target.id === 'companySignModal') closeCompanySignModal();
+  });
+  $('clearCompanySigBtn').addEventListener('click', ()=>{
+    if (companySigPadCtrl) companySigPadCtrl.clear();
+    updateCompanySignSubmitState();
+  });
+  $('companySignerName').addEventListener('input', updateCompanySignSubmitState);
+
+  $('submitCompanySignBtn').addEventListener('click', async ()=>{
+    const name = $('companySignerName').value.trim();
+    if (!name || !companySigPadCtrl.hasDrawing()) return;
+    $('submitCompanySignBtn').disabled = true;
+    $('companySignStatus').textContent = 'Saving signature...';
+    try{
+      const sigData = companySigPadCtrl.toDataURL();
+      const nowIso = new Date().toISOString();
+      const { error } = await sb.from('estimates').update({
+        company_signature_data: sigData, company_signed_by_name: name, company_signed_at: nowIso
+      }).eq('id', currentEstimateId);
+      if (error) throw error;
+      companySignedAt = nowIso;
+      companySignedByName = name;
+      $('companySignStatus').textContent = '';
+      closeCompanySignModal();
+      await proceedWithShareLink();
+    }catch(e){
+      $('companySignStatus').textContent = `Couldn't save signature: ${e.message||e}`;
+      $('submitCompanySignBtn').disabled = false;
+    }
   });
 
   // ---------- quote number ----------
