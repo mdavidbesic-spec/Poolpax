@@ -169,11 +169,22 @@
       html += `<hr><div class="label">Terms</div><div class="terms">${escHtml(r.biz_terms)}</div>`;
     }
 
+    if (r.company_signed_at){
+      html += `<div class="block" style="margin-top:18px; padding:12px 14px; background:#FBF8F2; border-radius:4px; border:1px solid var(--line);">
+        <div style="font-size:12.5px; color:var(--muted);">Signed for ${escHtml(r.biz_name||'the company')} by ${escHtml(r.company_signed_by_name)} on ${new Date(r.company_signed_at).toLocaleString()}</div>
+      </div>`;
+    }
+
     if (r.signed_at){
       html += `<div class="sign-card confirmed">
         <div class="check">✓</div>
         <h2>Signed &amp; accepted</h2>
         <div class="sub">Signed by ${escHtml(r.signed_by_name)} on ${new Date(r.signed_at).toLocaleString()}</div>
+        <div class="sub" style="margin-top:4px;">This contract is fully executed by both parties.</div>
+      </div>`;
+    } else if (!r.company_signed_at){
+      html += `<div class="sign-card">
+        <div class="sub" style="text-align:center;">This estimate hasn't been finalized by the contractor yet — check back soon.</div>
       </div>`;
     } else {
       html += `<div class="sign-card" id="signCard">
@@ -202,7 +213,7 @@
 
     $('content').innerHTML = html;
 
-    if (!r.signed_at) setupSignaturePad(r.id);
+    if (!r.signed_at && r.company_signed_at) setupSignaturePad(r.id);
   }
 
   function $(id){ return document.getElementById(id); }
