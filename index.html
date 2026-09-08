@@ -152,7 +152,22 @@
     border-radius:20px; padding:8px 16px; font-size:13px; font-weight:600; white-space:nowrap;
   }
   .logout-btn:hover{background:rgba(255,255,255,0.08);}
-  .brand{font-family:var(--font-head); font-size:30px; letter-spacing:0.3px; color:var(--white);}
+  .theme-switch{
+    position:relative; width:46px; height:25px; border-radius:14px; flex-shrink:0;
+    background: rgba(241,232,216,0.18); border:1px solid rgba(241,232,216,0.35);
+    padding:0;
+  }
+  .theme-switch-knob{
+    position:absolute; top:2px; left:2px; width:19px; height:19px; border-radius:50%;
+    background: var(--coral); box-shadow:0 1px 3px rgba(0,0,0,0.35);
+    transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  }
+  html[data-theme="dark"] .theme-switch-knob{
+    transform: translateX(21px);
+    background: var(--caustic);
+    box-shadow: 0 0 8px 1px rgba(159,255,243,0.65), 0 1px 3px rgba(0,0,0,0.35);
+  }
+  .brand{font-family:var(--font-head); font-size:30px; letter-spacing:0.3px; color:var(--on-deep);}
   .brand .dot{color:var(--coral);}
   .tagline{font-size:13.5px; color: rgba(241,232,216,0.75); font-style:italic; font-family: var(--font-head);}
 
@@ -253,8 +268,12 @@
   /* preview */
   .preview-wrap{position:sticky; top:16px;}
   .quote-sheet{
-    background:#fff; border:1px solid var(--line); border-radius:3px; padding:26px 24px;
+    background:#fff; border:1px solid rgba(10,35,31,0.14); border-radius:3px; padding:26px 24px;
     font-size:13.5px;
+    /* Always reads like paper, even in dark mode — pin the text tokens so they don't flip. */
+    --ink:#0A2321; --muted:#5B6B64; --faint:#8A968F; --line: rgba(10,35,31,0.14);
+    --coral:#C08A3E; --coral-dark:#A5732F; --aqua:#0E8A82; --aqua-dark:#0A6B64;
+    color: var(--ink);
   }
   .quote-sheet h3{font-size:22px; margin-bottom:2px;}
   .quote-sheet .qs-sub{color:var(--muted); font-size:12.5px; margin-bottom:18px;}
@@ -337,7 +356,7 @@
     <div class="topbar-row">
       <div class="brand">PoolPax<span class="dot">.</span></div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <button class="logout-btn" id="themeToggleBtn" style="width:38px; padding:8px 0; font-size:15px;" aria-label="Toggle light/dark theme">🌙</button>
+        <button class="theme-switch" id="themeToggleBtn" role="switch" aria-checked="false" aria-label="Toggle dark mode"><span class="theme-switch-knob"></span></button>
         <button class="pricebook-btn" id="openPriceBookBtn">Price Book</button>
         <button class="logout-btn" id="logoutBtn">Log Out</button>
       </div>
@@ -619,11 +638,14 @@
 
         <div class="quote-actions no-print">
           <button class="btn btn-primary btn-sm" id="downloadPdfBtn">Download PDF</button>
+          <button class="btn btn-secondary btn-sm" id="shareSignBtn">Send for signature</button>
           <button class="btn btn-ghost btn-sm" id="printBtn">Print (device dialog)</button>
           <button class="btn btn-ghost btn-sm" id="copyBtn">Copy as text</button>
         </div>
         <div class="ai-note no-print" id="pdfStatus"></div>
+        <div class="ai-note no-print" id="shareStatus"></div>
         <a id="pdfManualLink" class="no-print" style="display:none; margin-top:8px; color:var(--aqua-dark); font-weight:600; font-size:13.5px;" target="_blank">Tap here to open your PDF</a>
+        <div id="signBadge" class="no-print" style="display:none; margin-top:10px; padding:10px 12px; border-radius:4px; background:rgba(14,138,130,0.12); border:1px solid var(--aqua); font-size:13px; color:var(--aqua-dark); font-weight:600;"></div>
         <textarea id="copyFallback" class="no-print" readonly style="display:none; margin-top:10px; width:100%; min-height:120px; font-size:12px;"></textarea>
       </div>
     </div>
@@ -681,10 +703,10 @@
   function applyTheme(mode){
     if (mode === 'dark'){
       document.documentElement.setAttribute('data-theme', 'dark');
-      $('themeToggleBtn').textContent = '☀️';
+      $('themeToggleBtn').setAttribute('aria-checked', 'true');
     } else {
       document.documentElement.removeAttribute('data-theme');
-      $('themeToggleBtn').textContent = '🌙';
+      $('themeToggleBtn').setAttribute('aria-checked', 'false');
     }
   }
   function initTheme(){
@@ -1599,22 +1621,64 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     };
   }
 
+  async function saveEstimateToAccount(){
+    const row = estimateRow();
+    if (currentEstimateId){
+      const { error } = await sb.from('estimates').update(row).eq('id', currentEstimateId);
+      if (error) throw error;
+      return currentEstimateId;
+    } else {
+      const { data, error } = await sb.from('estimates').insert(row).select().single();
+      if (error) throw error;
+      currentEstimateId = data.id;
+      return data.id;
+    }
+  }
+
   $('saveToAccountBtn').addEventListener('click', async ()=>{
     $('accountSaveStatus').textContent = 'Saving...';
     try{
-      const row = estimateRow();
-      if (currentEstimateId){
-        const { error } = await sb.from('estimates').update(row).eq('id', currentEstimateId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await sb.from('estimates').insert(row).select().single();
-        if (error) throw error;
-        currentEstimateId = data.id;
-      }
+      await saveEstimateToAccount();
       $('accountSaveStatus').textContent = `Saved at ${new Date().toLocaleTimeString()}.`;
       loadMyEstimates();
     }catch(e){
       $('accountSaveStatus').textContent = `Couldn't save: ${e.message || e}`;
+    }
+  });
+
+  function updateSignBadge(r){
+    const badge = $('signBadge');
+    if (r && r.signed_at){
+      badge.style.display = 'block';
+      badge.textContent = `Signed by ${r.signed_by_name||'client'} on ${new Date(r.signed_at).toLocaleString()}`;
+    } else {
+      badge.style.display = 'none';
+      badge.textContent = '';
+    }
+  }
+
+  $('shareSignBtn').addEventListener('click', async ()=>{
+    $('shareStatus').textContent = 'Preparing signable link...';
+    try{
+      const id = await saveEstimateToAccount();
+      const { error } = await sb.from('estimates').update({ is_shared: true }).eq('id', id);
+      if (error) throw error;
+      const link = `${window.location.origin}/view.html?id=${id}`;
+      if (navigator.share){
+        try{
+          await navigator.share({ title: 'Your pool estimate', text: 'Please review and sign your estimate.', url: link });
+          $('shareStatus').textContent = 'Shared.';
+          return;
+        }catch(shareErr){ /* fall through to showing the link */ }
+      }
+      try{
+        await navigator.clipboard.writeText(link);
+        $('shareStatus').innerHTML = `Link copied: <a href="${link}" target="_blank" style="color:var(--aqua-dark); font-weight:600;">${link}</a>`;
+      }catch(clipErr){
+        $('shareStatus').innerHTML = `Send this link to your client: <a href="${link}" target="_blank" style="color:var(--aqua-dark); font-weight:600;">${link}</a>`;
+      }
+    }catch(e){
+      $('shareStatus').textContent = `Couldn't create a signable link: ${e.message || e}`;
     }
   });
 
@@ -1634,6 +1698,7 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     $('laborBasis').dispatchEvent(new Event('change'));
     $('markupPct').value = r.markup_pct||30; $('taxPct').value = r.tax_pct||0;
     $('depositPct').value = r.deposit_pct||30;
+    updateSignBadge(r);
     renderMaterials(); renderAdditional(); renderThumbs(); updatePreview();
     window.scrollTo({top:0, behavior:'smooth'});
   }
@@ -1642,7 +1707,7 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     const wrap = $('myEstimatesList');
     wrap.innerHTML = '<div style="color:#5b6b64;">Loading...</div>';
     const { data, error } = await sb.from('estimates')
-      .select('id, quote_number, job_title, client_name, updated_at')
+      .select('id, quote_number, job_title, client_name, updated_at, signed_at')
       .eq('company_id', currentCompanyId)
       .order('updated_at', { ascending:false })
       .limit(25);
@@ -1652,7 +1717,7 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     data.forEach(r=>{
       const row = document.createElement('div');
       row.className = 'saved-item';
-      const label = (r.quote_number?`${r.quote_number} — `:'') + (r.job_title || 'Untitled estimate') + (r.client_name? ' — '+r.client_name : '');
+      const label = (r.quote_number?`${r.quote_number} — `:'') + (r.job_title || 'Untitled estimate') + (r.client_name? ' — '+r.client_name : '') + (r.signed_at ? ' ✓ Signed' : '');
       const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '';
       row.innerHTML = `<div><div>${escHtml(label)}</div><div class="meta">${when}</div></div>`;
       const btnWrap = document.createElement('div');
