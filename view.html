@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Estimate — PoolPax</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A2321; --deep:#0B4A47; --aqua:#0E8A82; --aqua-dark:#0A6B64;
+    --sand:#EDE7D9; --coral:#C08A3E; --coral-dark:#A5732F; --white:#FFFFFF;
+    --line: rgba(10,35,31,0.14); --muted:#5B6B64; --faint:#8A968F;
+    --font-head: 'Fraunces', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family: var(--font-body); color:var(--ink); background:var(--sand);
+    line-height:1.5; -webkit-font-smoothing:antialiased; padding:24px 16px 60px;
+  }
+  h1,h2,h3{font-family: var(--font-head); margin:0; font-weight:600;}
+  .wrap{max-width:640px; margin:0 auto;}
+  .sheet{
+    background:#fff; border:1px solid var(--line); border-radius:6px; padding:28px 24px;
+    border-top:4px solid var(--coral);
+  }
+  .logo{height:48px; max-width:180px; object-fit:contain; margin-bottom:10px; display:block;}
+  h1{font-size:22px;}
+  .sub{color:var(--muted); font-size:12.5px; margin-top:2px;}
+  .meta{color:var(--muted); font-size:12.5px; margin-top:6px;}
+  hr{border:none; border-top:1px solid var(--line); margin:20px 0;}
+  .block{margin-bottom:18px;}
+  .label{font-size:12px; letter-spacing:0.1px; color:var(--coral-dark); font-weight:700; margin-bottom:5px; padding-left:11px; position:relative;}
+  .label::before{content:''; position:absolute; left:0; top:3px; width:4px; height:11px; background:var(--coral); border-radius:1px;}
+  .two{display:flex; gap:20px; flex-wrap:wrap;}
+  .two > div{flex:1; min-width:180px;}
+  .line{display:flex; justify-content:space-between; font-size:13.5px; padding:4px 0;}
+  .total-line{display:flex; justify-content:space-between; font-size:17px; font-weight:700; padding-top:10px; margin-top:6px; border-top:2px solid var(--ink);}
+  .terms{font-size:12px; color:var(--muted); white-space:pre-wrap;}
+  .photos{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .photos img{width:72px; height:72px; object-fit:cover; border-radius:4px;}
+
+  .sign-card{margin-top:22px; padding-top:22px; border-top:2px dashed var(--line);}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:5px;}
+  .field input{width:100%; padding:10px; border:1px solid var(--line); border-radius:4px; font-size:15px; font-family:var(--font-body);}
+  canvas{width:100%; height:160px; border:1px solid var(--line); border-radius:4px; background:#FBF8F2; touch-action:none; display:block;}
+  .sig-actions{display:flex; justify-content:space-between; align-items:center; margin-top:6px;}
+  .sig-hint{font-size:12px; color:var(--faint);}
+  .clear-btn{background:none; border:none; color:var(--aqua-dark); font-weight:600; font-size:13px; cursor:pointer; padding:4px 0;}
+  .consent{display:flex; align-items:flex-start; gap:8px; font-size:13px; color:var(--muted); margin:16px 0;}
+  .consent input{margin-top:3px;}
+  .sign-btn{
+    width:100%; padding:13px; background:var(--coral); color:#fff; border:none; border-radius:4px;
+    font-size:15px; font-weight:700; font-family:var(--font-body); cursor:pointer;
+  }
+  .sign-btn:disabled{background:#D9C6A0; cursor:not-allowed;}
+  .status{font-size:13px; color:var(--muted); margin-top:10px; text-align:center; min-height:1em;}
+  .confirmed{
+    text-align:center; padding:32px 20px;
+  }
+  .confirmed .check{font-size:40px; margin-bottom:10px;}
+  .loading, .error-state{text-align:center; padding:60px 20px; color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="sheet" id="content">
+    <div class="loading" id="loadingState">Loading your estimate...</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  const SUPABASE_URL = 'https://bletwpdsuiirddkbjafb.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_48DdfW3kurbIzbDqctw2LQ_NZgr2HQU';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtDate(iso){
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
+  }
+
+  function computeTotals(r){
+    const materials = r.materials || [];
+    const additional = r.additional || [];
+    const matSubtotal = materials.reduce((s,m)=> s + (Number(m.qty)||0)*(Number(m.cost)||0), 0);
+    let laborBase = 0;
+    if (r.labor_basis === 'hourly') laborBase = (Number(r.labor_rate)||0) * (Number(r.labor_hours)||0);
+    else if (r.labor_basis === 'daily') laborBase = (Number(r.labor_day_rate)||0) * (Number(r.labor_days)||0);
+    else laborBase = Number(r.labor_flat)||0;
+    const laborSubtotal = laborBase * (1 + (Number(r.labor_complexity)||0)/100);
+    const addSubtotal = additional.reduce((s,a)=> s + (Number(a.amount)||0), 0);
+    const markupAmt = (matSubtotal+laborSubtotal) * ((Number(r.markup_pct)||0)/100);
+    const taxAmt = matSubtotal * ((Number(r.tax_pct)||0)/100);
+    const total = matSubtotal + laborSubtotal + addSubtotal + markupAmt + taxAmt;
+    const deposit = total * ((Number(r.deposit_pct)||0)/100);
+    return {matSubtotal, laborSubtotal, addSubtotal, markupAmt, taxAmt, total, deposit, laborBase};
+  }
+
+  function laborDescription(r){
+    if (r.labor_basis === 'hourly') return `${r.labor_hours||0} hrs × $${Number(r.labor_rate||0).toFixed(2)}/hr`;
+    if (r.labor_basis === 'daily') return `${r.labor_days||0} day(s) × $${Number(r.labor_day_rate||0).toFixed(2)}/day`;
+    return 'Flat labor amount';
+  }
+
+  function renderEstimate(r){
+    const t = computeTotals(r);
+    const materials = r.materials || [];
+    const additional = r.additional || [];
+    const photos = r.photos || [];
+
+    let html = '';
+    if (r.biz_logo) html += `<img class="logo" src="${r.biz_logo}">`;
+    html += `<h1>${escHtml(r.biz_name||'Your Contractor')}</h1>`;
+    html += `<div class="sub">${[r.biz_phone, r.biz_email, r.biz_website].filter(Boolean).map(escHtml).join(' · ')}</div>`;
+    html += `<div class="meta">${r.quote_number?`Quote ${escHtml(r.quote_number)}`:''}${r.quote_date?` · Issued ${fmtDate(r.quote_date)}`:''}</div>`;
+    html += `<hr>`;
+
+    html += `<div class="block two">
+      <div><div class="label">Prepared for</div>${[r.client_name, r.client_phone, r.client_email].filter(Boolean).map(escHtml).join('<br>') || '—'}</div>
+      <div><div class="label">Job location</div>${escHtml(r.job_address)||'—'}</div>
+    </div>`;
+
+    html += `<div class="block">
+      <div class="label">Job</div>
+      <div style="font-weight:600;">${escHtml(r.job_title)||'Pool Remodel Estimate'}</div>
+      <div style="margin-top:4px; color:#3a463f;">${escHtml(r.scope_of_work || r.job_desc || '')}</div>
+    </div>`;
+
+    if (photos.length){
+      html += `<div class="photos">${photos.map(p=>`<img src="${p.smallDataUrl||p.dataUrl}">`).join('')}</div>`;
+    }
+    html += `<hr>`;
+
+    html += `<div class="block"><div class="label">Materials &amp; finishes</div>`;
+    html += materials.length ? materials.map(m=>
+      `<div class="line"><span>${escHtml(m.desc)} (${m.qty} ${escHtml(m.unit)} × $${Number(m.cost).toFixed(2)})</span><span>$${(Number(m.qty)*Number(m.cost)).toFixed(2)}</span></div>`
+    ).join('') : `<div class="line"><span>—</span><span></span></div>`;
+    html += `</div>`;
+
+    html += `<div class="block"><div class="label">Labor</div>
+      <div class="line"><span>${laborDescription(r)}${r.labor_complexity?` (+${r.labor_complexity}% complexity)`:''}</span><span>$${t.laborSubtotal.toFixed(2)}</span></div>
+    </div>`;
+
+    if (additional.length){
+      html += `<div class="block"><div class="label">Additional costs</div>`;
+      html += additional.map(a=>`<div class="line"><span>${escHtml(a.desc)}</span><span>$${Number(a.amount).toFixed(2)}</span></div>`).join('');
+      html += `</div>`;
+    }
+
+    html += `<hr>`;
+    html += `<div class="line"><span>Materials &amp; finishes</span><span>$${t.matSubtotal.toFixed(2)}</span></div>`;
+    html += `<div class="line"><span>Labor</span><span>$${t.laborSubtotal.toFixed(2)}</span></div>`;
+    if (additional.length) html += `<div class="line"><span>Additional costs</span><span>$${t.addSubtotal.toFixed(2)}</span></div>`;
+    html += `<div class="line"><span>Markup (${r.markup_pct||0}%)</span><span>$${t.markupAmt.toFixed(2)}</span></div>`;
+    if (r.tax_pct) html += `<div class="line"><span>Sales tax (${r.tax_pct}%)</span><span>$${t.taxAmt.toFixed(2)}</span></div>`;
+    html += `<div class="total-line"><span>Total estimate</span><span>$${t.total.toFixed(2)}</span></div>`;
+    html += `<div class="line" style="margin-top:8px;"><span>Deposit due (${r.deposit_pct||0}%)</span><span>$${t.deposit.toFixed(2)}</span></div>`;
+    html += `<div class="line"><span>Balance due on completion</span><span>$${(t.total-t.deposit).toFixed(2)}</span></div>`;
+
+    if (r.biz_terms){
+      html += `<hr><div class="label">Terms</div><div class="terms">${escHtml(r.biz_terms)}</div>`;
+    }
+
+    if (r.signed_at){
+      html += `<div class="sign-card confirmed">
+        <div class="check">✓</div>
+        <h2>Signed &amp; accepted</h2>
+        <div class="sub">Signed by ${escHtml(r.signed_by_name)} on ${new Date(r.signed_at).toLocaleString()}</div>
+      </div>`;
+    } else {
+      html += `<div class="sign-card" id="signCard">
+        <h2>Review &amp; sign</h2>
+        <div class="sub" style="margin-bottom:14px;">By signing below, you accept this estimate and its terms.</div>
+        <div class="field">
+          <label>Your full name</label>
+          <input type="text" id="signerName" placeholder="Jane Homeowner">
+        </div>
+        <div class="field">
+          <label>Signature</label>
+          <canvas id="sigPad"></canvas>
+          <div class="sig-actions">
+            <span class="sig-hint">Draw with your finger or mouse</span>
+            <button type="button" class="clear-btn" id="clearSigBtn">Clear</button>
+          </div>
+        </div>
+        <label class="consent">
+          <input type="checkbox" id="consentCheck">
+          <span>I have reviewed this estimate and agree to the scope, pricing, and terms above.</span>
+        </label>
+        <button class="sign-btn" id="signSubmitBtn" disabled>Sign &amp; Accept</button>
+        <div class="status" id="signStatus"></div>
+      </div>`;
+    }
+
+    $('content').innerHTML = html;
+
+    if (!r.signed_at) setupSignaturePad(r.id);
+  }
+
+  function $(id){ return document.getElementById(id); }
+
+  function setupSignaturePad(estimateId){
+    const canvas = $('sigPad');
+    const ctx = canvas.getContext('2d');
+    function resize(){
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#0A2321';
+    }
+    resize();
+
+    let drawing = false, hasDrawn = false, lastX = 0, lastY = 0;
+    function pos(e){
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    function start(e){ drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; }
+    function move(e){
+      if (!drawing) return;
+      const p = pos(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+      lastX = p.x; lastY = p.y; hasDrawn = true;
+      updateSubmitState();
+    }
+    function end(){ drawing = false; }
+
+    canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); start(e); });
+    canvas.addEventListener('pointermove', move);
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+
+    $('clearSigBtn').addEventListener('click', ()=>{
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      hasDrawn = false;
+      updateSubmitState();
+    });
+
+    function updateSubmitState(){
+      const name = $('signerName').value.trim();
+      const consent = $('consentCheck').checked;
+      $('signSubmitBtn').disabled = !(hasDrawn && name && consent);
+    }
+    $('signerName').addEventListener('input', updateSubmitState);
+    $('consentCheck').addEventListener('change', updateSubmitState);
+
+    $('signSubmitBtn').addEventListener('click', async ()=>{
+      const name = $('signerName').value.trim();
+      if (!hasDrawn || !name || !$('consentCheck').checked) return;
+      $('signSubmitBtn').disabled = true;
+      $('signStatus').textContent = 'Submitting your signature...';
+      try{
+        const signatureData = canvas.toDataURL('image/png');
+        const { data, error } = await sb.rpc('sign_public_estimate', {
+          p_id: estimateId, p_signature: signatureData, p_signed_name: name
+        });
+        if (error) throw error;
+        $('signCard').innerHTML = `
+          <div class="confirmed">
+            <div class="check">✓</div>
+            <h2>Signed &amp; accepted</h2>
+            <div class="sub">Thanks, ${escHtml(name)} — your signature has been recorded.</div>
+          </div>`;
+      }catch(e){
+        $('signStatus').textContent = `Couldn't submit: ${e.message||e}. Please try again.`;
+        $('signSubmitBtn').disabled = false;
+      }
+    });
+  }
+
+  async function init(){
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    if (!id){
+      $('content').innerHTML = `<div class="error-state">No estimate specified.</div>`;
+      return;
+    }
+    try{
+      const { data, error } = await sb.rpc('get_public_estimate', { p_id: id });
+      if (error || !data) throw error || new Error('not found');
+      renderEstimate(data);
+    }catch(e){
+      $('content').innerHTML = `<div class="error-state">This link isn't valid, or the estimate is no longer available.</div>`;
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
