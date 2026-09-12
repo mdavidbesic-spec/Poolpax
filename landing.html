@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolPax — Estimates with peace of mind</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A2321; --deep:#0B4A47; --aqua:#0E8A82; --aqua-dark:#0A6B64;
+    --sand:#EDE7D9; --sand-deep:#E0D8C4; --coral:#C08A3E; --coral-dark:#A5732F;
+    --white:#FFFFFF; --line: rgba(10,35,33,0.14); --muted:#5B6B64; --faint:#8A968F;
+    --caustic:#8FEFE6;
+    --font-head: 'Fraunces', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font-body); color:var(--ink); background:var(--sand); line-height:1.55; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:var(--font-head); margin:0; font-weight:600;}
+  a{color:inherit;}
+  .wrap{max-width:920px; margin:0 auto; padding:0 20px;}
+
+  .hero{
+    position:relative; overflow:hidden; padding:70px 0 90px; color:var(--sand);
+    background:
+      radial-gradient(circle at 18% 20%, rgba(159,255,243,0.16), transparent 42%),
+      radial-gradient(circle at 82% 78%, rgba(14,138,130,0.40), transparent 52%),
+      linear-gradient(160deg, #051417 0%, #0B4A47 55%, #0A6B64 100%);
+  }
+  .hero::before{
+    content:''; position:absolute; inset:-15%;
+    background: radial-gradient(circle at 30% 35%, rgba(159,255,243,0.14), transparent 38%),
+                radial-gradient(circle at 68% 65%, rgba(159,255,243,0.10), transparent 34%);
+    animation: causticDrift 24s ease-in-out infinite alternate; pointer-events:none;
+  }
+  @keyframes causticDrift{ 0%{transform:translate(0,0) scale(1);} 100%{transform:translate(3%,-4%) scale(1.08);} }
+  @media (prefers-reduced-motion: reduce){ .hero::before{animation:none;} }
+  .hero-inner{position:relative; z-index:1; text-align:center;}
+  .brand{font-size:34px; letter-spacing:0.3px;}
+  .brand .dot{color:var(--coral);}
+  .hero h1{font-size:38px; line-height:1.15; margin:22px auto 14px; max-width:640px;}
+  .hero p{font-size:16.5px; color:rgba(237,231,217,0.85); max-width:520px; margin:0 auto 30px;}
+  .btn{
+    display:inline-block; padding:14px 30px; border-radius:4px; font-weight:700; font-size:15.5px;
+    text-decoration:none; font-family:var(--font-body); border:none; cursor:pointer;
+  }
+  .btn-primary{background:var(--coral); color:#fff;}
+  .btn-ghost-light{background:transparent; color:var(--sand); border:1px solid rgba(237,231,217,0.4); margin-left:10px;}
+
+  section{padding:64px 0;}
+  .section-title{text-align:center; font-size:28px; margin-bottom:12px;}
+  .section-sub{text-align:center; color:var(--muted); max-width:520px; margin:0 auto 44px; font-size:15px;}
+
+  .features{display:grid; grid-template-columns:repeat(3,1fr); gap:26px;}
+  @media (max-width:720px){ .features{grid-template-columns:1fr;} }
+  .feature{background:#fff; border-left:4px solid var(--aqua); border-radius:3px; padding:22px 20px;}
+  .feature h3{font-size:17px; margin-bottom:8px;}
+  .feature p{font-size:14px; color:var(--muted); margin:0;}
+
+  .pricing{background:#fff; border-top:4px solid var(--coral); border-radius:8px; max-width:420px; margin:0 auto; padding:40px 32px; text-align:center; box-shadow:0 20px 50px -30px rgba(10,35,33,0.35);}
+  .price{font-family:var(--font-head); font-size:48px; margin:16px 0 4px;}
+  .price span{font-size:16px; color:var(--muted); font-family:var(--font-body); font-weight:500;}
+  .pricing ul{list-style:none; padding:0; margin:24px 0 30px; text-align:left; font-size:14.5px; color:var(--ink);}
+  .pricing li{padding:7px 0 7px 24px; position:relative;}
+  .pricing li::before{content:'✓'; position:absolute; left:0; color:var(--aqua-dark); font-weight:700;}
+  .trial-note{font-size:12.5px; color:var(--faint); margin-top:14px;}
+
+  footer{text-align:center; padding:40px 20px; color:var(--faint); font-size:13px;}
+  footer a{color:var(--aqua-dark); font-weight:600; text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap hero-inner">
+    <div class="brand">PoolPax<span class="dot">.</span></div>
+    <h1>The operating system for your pool remodeling business</h1>
+    <p>Build professional estimates in minutes, send them for e-signature, and keep every job organized — all from your phone.</p>
+    <a href="#pricing" class="btn btn-primary">Start your free trial</a>
+    <a href="index.html" class="btn btn-ghost-light">Log in</a>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2 class="section-title">Everything you need to quote with confidence</h2>
+    <div class="section-sub">Built by a pool professional, for pool professionals.</div>
+    <div class="features">
+      <div class="feature">
+        <h3>Your own price book</h3>
+        <p>Set your real material and labor costs once — every future estimate uses your numbers, not a guess.</p>
+      </div>
+      <div class="feature">
+        <h3>AI-assisted quoting</h3>
+        <p>Describe the job or add a photo, and get a polished scope of work and suggested materials in seconds.</p>
+      </div>
+      <div class="feature">
+        <h3>Send for e-signature</h3>
+        <p>Clients review and sign right from their phone — no printing, no separate app, fully timestamped and stored.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <h2 class="section-title">Simple pricing</h2>
+    <div class="section-sub">One plan. Everything included.</div>
+    <div class="pricing">
+      <div style="font-size:13px; color:var(--muted); font-weight:600;">PoolPax Subscription</div>
+      <div class="price">$149<span>/month</span></div>
+      <ul>
+        <li>Unlimited estimates</li>
+        <li>Your own price book</li>
+        <li>AI-assisted scope &amp; quotes</li>
+        <li>Unlimited e-signatures</li>
+        <li>PDF export</li>
+      </ul>
+      <a href="https://buy.stripe.com/test_3cI4gBgvtc7z2IicWf6J200" class="btn btn-primary" style="width:100%; box-sizing:border-box;">Start your 14-day free trial</a>
+      <div class="trial-note">No charge today. Cancel anytime during your trial.</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Already have an account? <a href="index.html">Log in here</a>
+</footer>
+
+</body>
+</html>
