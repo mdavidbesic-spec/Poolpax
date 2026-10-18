@@ -361,6 +361,22 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="newPasswordModal">
+  <div class="modal-panel" style="max-width:380px;">
+    <div class="modal-head"><h2 style="font-size:17px;">Set a new password</h2></div>
+    <div class="modal-sub">Choose a new password for your PoolPax account.</div>
+    <div class="modal-body">
+      <div class="field">
+        <label>New password</label>
+        <input type="password" id="newPasswordInput" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="At least 6 characters">
+      </div>
+      <button class="btn btn-primary btn-sm" id="saveNewPasswordBtn">Save new password</button>
+      <button class="btn btn-ghost btn-sm" id="cancelNewPasswordBtn" style="margin-left:8px;">Cancel</button>
+      <div class="ai-note" id="newPasswordStatus"></div>
+    </div>
+  </div>
+</div>
+
 <div class="app-content hidden" id="appContent">
 
 <div class="topbar">
@@ -604,9 +620,18 @@
       <div class="card">
         <h2>Save this estimate</h2>
         <div class="sub">Saves to your PoolPax account — accessible from any device, anytime you're logged in.</div>
-        <button class="btn btn-secondary btn-sm" id="saveToAccountBtn">Save to my account</button>
+        <div class="add-row-bar">
+          <button class="btn btn-secondary btn-sm" id="saveToAccountBtn">Save to my account</button>
+          <button class="btn btn-ghost btn-sm" id="newEstimateBtn">+ New estimate</button>
+        </div>
         <div class="ai-note" id="accountSaveStatus"></div>
         <div class="saved-list" id="myEstimatesList" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Account</h2>
+        <div class="sub">Signed in as <span id="accountEmailLabel"></span></div>
+        <button class="btn btn-ghost btn-sm" id="changePasswordBtn">Change password</button>
       </div>
 
       <div class="card">
@@ -1175,16 +1200,13 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     });
 
     try{
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      const resp = await fetch("/api/ai-draft", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({
-          model:"claude-sonnet-4-6",
-          max_tokens:1100,
-          messages:[{role:"user", content}]
-        })
+        body: JSON.stringify({ content, max_tokens: 1100 })
       });
       const data = await resp.json();
+      if (!resp.ok){ throw new Error(data.error || 'AI request failed.'); }
       const textBlock = (data.content||[]).find(b=>b.type==="text");
       let rawOut = textBlock ? textBlock.text : "";
       rawOut = rawOut.replace(/```json|```/g,'').trim();
@@ -2015,6 +2037,7 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     renderThumbs();
     renderLogo();
     updatePreview();
+    if (currentUser && currentUser.email) $('accountEmailLabel').textContent = currentUser.email;
     await loadMyEstimates();
     $('authGate').classList.add('hidden');
     $('appContent').classList.remove('hidden');
@@ -2157,9 +2180,86 @@ For suggestedLineItems, use realistic 2026 pricing and keep to the 3-6 most rele
     showAuthGate();
   });
 
+  // ---------- account: change password ----------
+  $('changePasswordBtn').addEventListener('click', ()=>{
+    $('newPasswordInput').value = '';
+    $('newPasswordStatus').textContent = '';
+    $('cancelNewPasswordBtn').style.display = '';
+    $('newPasswordModal').classList.add('open');
+  });
+  $('cancelNewPasswordBtn').addEventListener('click', ()=>{
+    if (inRecovery) return;
+    $('newPasswordModal').classList.remove('open');
+  });
+
+  // ---------- new estimate (reset form) ----------
+  let newEstimateArmed = false, newEstimateTimer = null;
+  $('newEstimateBtn').addEventListener('click', async ()=>{
+    const btn = $('newEstimateBtn');
+    if (!newEstimateArmed){
+      newEstimateArmed = true;
+      btn.textContent = 'Tap again to clear this form';
+      $('accountSaveStatus').textContent = 'Unsaved changes will be lost. Tap "Save to my account" first if you need this estimate.';
+      newEstimateTimer = setTimeout(()=>{
+        newEstimateArmed = false; btn.textContent = '+ New estimate'; $('accountSaveStatus').textContent = '';
+      }, 6000);
+      return;
+    }
+    clearTimeout(newEstimateTimer);
+    newEstimateArmed = false;
+    btn.textContent = '+ New estimate';
+    currentEstimateId = null;
+    companySignedAt = null; companySignedByName = null;
+    ['clientName','clientPhone','clientEmail','jobAddress','jobTitle','jobDesc','scopeOfWork'].forEach(id=> $(id).value = '');
+    materials = []; additional = []; photos = [];
+    $('laborHours').value = 0; $('laborDays').value = 1; $('laborFlat').value = 0; $('laborComplexity').value = 0;
+    $('scopeResult').style.display = 'none'; $('scopeResult').innerHTML = '';
+    $('scopeStatus').textContent = '';
+    $('shareStatus').textContent = '';
+    updateSignBadge(null);
+    renderMaterials(); renderAdditional(); renderThumbs();
+    await initQuoteNumber();
+    updatePreview();
+    $('accountSaveStatus').textContent = 'New estimate ready.';
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+
+  // ---------- password recovery ----------
+  let inRecovery = /type=recovery/.test(location.hash);
+  sb.auth.onAuthStateChange((event)=>{
+    if (event === 'PASSWORD_RECOVERY'){ inRecovery = true; $('cancelNewPasswordBtn').style.display = 'none'; $('newPasswordModal').classList.add('open'); }
+  });
+  if (inRecovery){ $('cancelNewPasswordBtn').style.display = 'none'; $('newPasswordModal').classList.add('open'); }
+  $('saveNewPasswordBtn').addEventListener('click', async ()=>{
+    const pw = $('newPasswordInput').value;
+    if (pw.length < 6){ $('newPasswordStatus').textContent = 'Password should be at least 6 characters.'; return; }
+    $('saveNewPasswordBtn').disabled = true;
+    $('newPasswordStatus').textContent = 'Saving...';
+    try{
+      const { data, error } = await sb.auth.updateUser({ password: pw });
+      if (error) throw error;
+      $('newPasswordInput').value = '';
+      if (inRecovery){
+        $('newPasswordStatus').textContent = 'Password updated. Logging you in...';
+        history.replaceState(null,'',location.pathname);
+        $('newPasswordModal').classList.remove('open');
+        inRecovery = false;
+        await handleSignedIn(data.user);
+      } else {
+        $('newPasswordStatus').textContent = 'Password updated ✓';
+        setTimeout(()=> $('newPasswordModal').classList.remove('open'), 1200);
+      }
+    }catch(e){
+      $('newPasswordStatus').textContent = (e && e.message) || 'Could not update password.';
+    }finally{
+      $('saveNewPasswordBtn').disabled = false;
+    }
+  });
+
   // ---------- init: check for an existing session first ----------
   (async function init(){
     const { data } = await sb.auth.getSession();
+    if (inRecovery){ $('newPasswordModal').classList.add('open'); return; }
     if (data && data.session && data.session.user){
       await handleSignedIn(data.session.user);
     } else {
